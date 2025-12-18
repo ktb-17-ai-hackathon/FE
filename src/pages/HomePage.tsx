@@ -4,9 +4,9 @@ import {
   FileText,
   Calendar,
   TrendingUp,
-  Bell,
   ChevronRight,
   PiggyBank,
+  BarChart3, // ✅ 추가
 } from 'lucide-react';
 
 import { loadCheongyakScoreFromStorage } from '../utils/cheongyakScore';
@@ -17,10 +17,7 @@ type LatestScore = ReturnType<typeof loadCheongyakScoreFromStorage>;
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
 
-  // ✅ 초기 빈칸 허용
   const [subscriptionMonths, setSubscriptionMonths] = useState<number | ''>('');
-
-  // ✅ 버튼 눌러서 "확인" 했는지 여부
   const [checkedSubscription, setCheckedSubscription] = useState(false);
   const [checkMessage, setCheckMessage] = useState<string | null>(null);
 
@@ -34,6 +31,18 @@ const HomePage: React.FC = () => {
     navigate('/survey');
   };
 
+  // ✅ 최근 surveyId 가져오기
+  const latestSurveyId = latestScore?.surveyId;
+
+  // ✅ 분석 결과 보기
+  const handleViewReport = () => {
+    if (latestSurveyId) {
+      navigate(`/plan/${latestSurveyId}`);
+    } else {
+      alert('아직 분석 결과가 없습니다. 먼저 설문을 완료해주세요.');
+    }
+  };
+
   const scoreText = latestScore ? `${latestScore.total}점` : '설문 필요';
 
   const unhousedText =
@@ -41,7 +50,6 @@ const HomePage: React.FC = () => {
       ? `${latestScore.debug.unhousedYears}년`
       : '설문 필요';
 
-  // ✅ "연속 납입 조건 충족 확인" 버튼 동작
   const handleCheckSubscription = () => {
     setCheckedSubscription(true);
 
@@ -61,7 +69,6 @@ const HomePage: React.FC = () => {
       {/* 헤더 */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {/* ✅ 로고 + 타이틀 */}
           <div className="flex items-center gap-3">
             <img
               src={hamaLogo}
@@ -130,11 +137,7 @@ const HomePage: React.FC = () => {
                   value={subscriptionMonths}
                   onChange={(e) => {
                     const v = e.target.value;
-
-                    // ✅ 빈칸 허용
                     setSubscriptionMonths(v === '' ? '' : Number(v));
-
-                    // ✅ 값 바뀌면 "확인 상태" 초기화 (버튼 다시 누르게)
                     setCheckedSubscription(false);
                     setCheckMessage(null);
                   }}
@@ -144,7 +147,6 @@ const HomePage: React.FC = () => {
                 />
               </div>
 
-              {/* ✅ 이제 "입력값이 있을 때만" 카드 표시 */}
               {subscriptionMonths !== '' && (
                 <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
                   <p className="text-sm text-blue-900 font-medium mb-1">
@@ -154,7 +156,6 @@ const HomePage: React.FC = () => {
                     {monthsForView}개월
                   </p>
 
-                  {/* ✅ 버튼 눌렀을 때만 표시 */}
                   {checkedSubscription && checkMessage && (
                     <p
                       className={`text-xs mt-2 ${
@@ -205,10 +206,7 @@ const HomePage: React.FC = () => {
                 </span>
               </div>
 
-              <div className="flex justify-between items-center p-4 bg-gray-50 rounded-xl">
-                <span className="text-gray-700 font-medium">청약 순위</span>
-                <span className="text-xl font-bold text-gray-900">-</span>
-              </div>
+              
 
               {latestScore && (
                 <div className="mt-2 text-xs text-gray-500">
@@ -217,63 +215,69 @@ const HomePage: React.FC = () => {
               )}
             </div>
 
-            <button className="w-full mt-4 bg-orange-500 text-white py-3 rounded-xl font-semibold hover:bg-orange-600 transition-all flex items-center justify-center gap-2">
-              상세 정보 입력하기
-              <ChevronRight className="w-5 h-5" />
-            </button>
+            
           </div>
 
-          {/* 4. 실시간 청약 일정 */}
+          {/* ✅ 4. 내 분석 결과 보기 */}
           <div className="bg-white rounded-3xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300">
-            <div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center mb-4">
-              <Bell className="w-8 h-8 text-purple-600" />
+            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+              <BarChart3 className="w-8 h-8 text-indigo-600" />
             </div>
 
             <h2 className="text-2xl font-bold text-gray-900 mb-3">
-              이달의 청약 일정
+              내 분석 결과
             </h2>
             <p className="text-gray-600 mb-6 text-sm">
-              놓치지 말아야 할 청약 공고를 확인하세요
+              AI가 분석한 나만의 청약 전략 리포트를 확인하세요
             </p>
 
-            <div className="space-y-3">
-              <div className="border-2 border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-all">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-bold text-gray-900">강남구 OO아파트</p>
-                    <p className="text-sm text-gray-600">민영주택 일반공급</p>
+            {latestSurveyId ? (
+              <div className="space-y-3">
+                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border-2 border-indigo-200 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="text-sm text-indigo-700 font-medium">
+                        최근 분석 결과
+                      </p>
+                      <p className="text-xs text-indigo-600 mt-1">
+                        Survey #{latestSurveyId}
+                      </p>
+                    </div>
+                    <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                      <FileText className="w-6 h-6 text-indigo-600" />
+                    </div>
                   </div>
-                  <span className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full">
-                    D-5
-                  </span>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <Calendar className="w-4 h-4" />
-                  <span>2025-01-15</span>
-                </div>
-              </div>
 
-              <div className="border-2 border-gray-200 rounded-xl p-4 hover:border-purple-300 transition-all">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <p className="font-bold text-gray-900">분당구 XX아파트</p>
-                    <p className="text-sm text-gray-600">공공분양 특별공급</p>
-                  </div>
-                  <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full">
-                    D-12
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500">
-                  <Calendar className="w-4 h-4" />
-                  <span>2025-01-22</span>
-                </div>
+                <button
+                  onClick={handleViewReport}
+                  className="w-full bg-indigo-500 text-white py-3 rounded-xl font-semibold hover:bg-indigo-600 transition-all flex items-center justify-center gap-2"
+                >
+                  리포트 확인하기
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-6 text-center">
+                  <div className="text-4xl mb-3">📊</div>
+                  <p className="text-gray-600 text-sm">
+                    아직 분석 결과가 없습니다
+                  </p>
+                  <p className="text-gray-500 text-xs mt-2">
+                    먼저 설문을 완료해주세요
+                  </p>
+                </div>
 
-            <button className="w-full mt-4 bg-purple-500 text-white py-3 rounded-xl font-semibold hover:bg-purple-600 transition-all flex items-center justify-center gap-2">
-              전체 일정 보기
-              <ChevronRight className="w-5 h-5" />
-            </button>
+                <button
+                  onClick={handleStartSurvey}
+                  className="w-full bg-gray-300 text-gray-600 py-3 rounded-xl font-semibold hover:bg-gray-400 hover:text-white transition-all flex items-center justify-center gap-2"
+                >
+                  설문 시작하기
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

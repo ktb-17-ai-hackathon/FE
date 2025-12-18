@@ -1,7 +1,9 @@
+// LoginPage.tsx
 import React, { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { api } from "../types";
+import hamaLogo from '../assets/hama.png'; // ✅ 추가
 
 type LocationState = { from?: string };
 
@@ -9,7 +11,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as LocationState)?.from ?? "/"; //////이부분 나중에 메인화면으로 바꾸기
+  const from = (location.state as LocationState)?.from ?? "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,10 +34,7 @@ const LoginPage: React.FC = () => {
 
       const res = await api.login({ email, password });
 
-      // 프론트 가드용(세션은 서버가 쿠키로 관리)
       localStorage.setItem("loginUser", JSON.stringify(res.data));
-
-      // ✅ 추가: 이전 계정의 "latest 청약가점"이 남아있으면 제거
       localStorage.removeItem("cheongyakScore:v1:latest");
 
       navigate(from, { replace: true });
@@ -50,9 +49,16 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">
-        {/* 헤더 */}
+        {/* ✅ 헤더 - 하마 로고 추가 */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">청약Assist</h1>
+          <div className="flex justify-center mb-4">
+            <img
+              src={hamaLogo}
+              alt="청약하마 로고"
+              className="w-24 h-24 object-contain"
+            />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">내집하마</h1>
           <p className="text-gray-600">로그인 후 설문을 진행할 수 있어요</p>
         </div>
 

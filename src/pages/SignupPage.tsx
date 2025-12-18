@@ -1,7 +1,9 @@
+// SignupPage.tsx
 import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, User2, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { api } from "../types";
+import hamaLogo from '../assets/hama.png'; // ✅ 추가
 
 const SignupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -40,7 +42,6 @@ const SignupPage: React.FC = () => {
 
       await api.signup({ name, email, password });
 
-      // 가입 성공 → 로그인 페이지로
       navigate("/login", { replace: true });
     } catch (err) {
       console.error(err);
@@ -53,9 +54,16 @@ const SignupPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto">
-        {/* 헤더 */}
+        {/* ✅ 헤더 - 하마 로고 추가 */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">청약Assist</h1>
+          <div className="flex justify-center mb-4">
+            <img
+              src={hamaLogo}
+              alt="청약하마 로고"
+              className="w-24 h-24 object-contain"
+            />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">내집하마</h1>
           <p className="text-gray-600">회원가입 후 설문을 진행할 수 있어요</p>
         </div>
 
