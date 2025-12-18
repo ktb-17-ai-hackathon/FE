@@ -1,5 +1,6 @@
 // src/types.ts
 import axios from "axios";
+import { authApi } from "./api/authApi";
 
 // 설문 타입 전부 재export
 export * from "./types/survey.types";
@@ -34,6 +35,7 @@ interface ApiResponse<T> {
 // ===== axios 인스턴스 (/api → 8080 프록시 전제) =====
 const http = axios.create({
   baseURL: "/api",
+  withCredentials: true,
 });
 
 // ===== 실제 백엔드 연동용 API =====
@@ -86,4 +88,8 @@ export const api = {
     );
     return res.data.data;
   },
+
+
+    ...authApi, // ✅ 추가 
+
 };
