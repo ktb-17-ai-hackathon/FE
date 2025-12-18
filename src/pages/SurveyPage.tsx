@@ -5,8 +5,6 @@ import { ChevronRight, ChevronLeft } from 'lucide-react';
 import {
   api,
   type SurveyCreateRequest,
-  type PlanHorizon,
-  type ConfidenceLevel,
 } from '../types';
 
 // 스텝 컴포넌트들
@@ -32,7 +30,9 @@ const SurveyPage: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<SurveyCreateRequest>({});
+  const [formData, setFormData] = useState<SurveyCreateRequest>(
+    {} as SurveyCreateRequest
+  );
 
   const handleNext = () => {
     if (currentStep < TOTAL_STEPS) {
@@ -54,58 +54,125 @@ const SurveyPage: React.FC = () => {
     try {
       setLoading(true);
 
-      // 1) 설문 저장
-      const { surveyId } = await api.createSurvey(formData);
+      console.log('[submit] raw formData = ', formData);
 
-      // 2) FastAPI 연동 전까지는 프론트에서 임시 mock LLM 결과 만들어서 보내기
-      const mockLlmResult = {
-        summary: {
-          title: '5년 안에 수도권 아파트 도전이 가능합니다.',
-          body:
-            '현재 연 소득과 자산, 저축 여력을 고려했을 때, 5년 안에 실거주용 아파트 청약을 목표로 하는 전략이 유효합니다.',
-        },
-        diagnosis: {
-          canBuyWithCheongyak: true,
-          confidenceLevel: 'MEDIUM',
-          reasons: [
-            '무주택 + 청약 통장 보유',
-            '현재 자산과 저축 여력이 목표 지역 입지 대비 나쁘지 않습니다.',
-          ],
-        },
-        timeHorizonStrategy: {
-          now: '지금은 청약 통장 납입액을 최소 기준 이상으로 맞추고, 부채 비율을 관리하는 시기입니다.',
-          threeYears:
-            '3년 차에는 청약 가점, 무주택 기간, 소득 요건을 다시 점검하고, 직장/생활권에 맞는 후보 지역을 2~3곳으로 압축하세요.',
-          fiveYears:
-            '5년 차에는 실제 청약 일정과 분양 공고를 캘린더로 관리하면서, 계약금/중도금 마련 플랜을 구체화하는 단계입니다.',
-        },
-        chartData: {
-          savingProjectionByYear: [
-            { year: 0, amount: formData.currentFinancialAssets ?? 80000000 },
-            { year: 1, amount: 105000000 },
-            { year: 2, amount: 130000000 },
-            { year: 3, amount: 155000000 },
-            { year: 4, amount: 180000000 },
-            { year: 5, amount: 205000000 },
-          ],
-        },
-        planMeta: {
-          recommendedHorizon: 'MID_5',
-          reason: '5년 차에 가용 예산이 목표치에 도달하는 구간으로 추정됩니다.',
-        },
-      };
+      // -------------------------------
+      // 1) formData 정제
+      // -------------------------------
+      const payload: any = { ...formData };
 
-      await api.createPlan({
-        surveyId,
-        llmRawResult: mockLlmResult,
-        recommendedHorizon: 'MID_5' as PlanHorizon,
-        confidenceLevel: 'MEDIUM' as ConfidenceLevel,
+      // 숫자 필드들: "" → null, 문자열 숫자 → number
+      const numberFields = [
+        'age',
+        'childCount',
+        'fChildCount',
+        'annualIncome',
+        'annualSideIncome',
+        'monthlySavingAmount',
+        'currentFinancialAssets',
+        'additionalAssets',
+        'targetSavingRate',
+        'debtPrincipal',
+        'debtPrincipalPaid',
+        'monthlyDebtPayment',
+        'monthlySubscriptionAmount',
+        'totalSubscriptionBalance',
+        'unhousedStartYear',
+      ] as const;
+
+      numberFields.forEach((key) => {
+        const v = payload[key];
+        if (v === '' || v === undefined) {
+          payload[key] = null;
+        } else if (typeof v === 'string') {
+          const parsed = Number(v);
+          payload[key] = Number.isNaN(parsed) ? null : parsed;
+        }
       });
 
+      // LocalDate용 문자열/Date 보정: "YYYY-MM" → "YYYY-MM-01", Date → "YYYY-MM-DD"
+      const normalizeYearMonthToDate = (value: any) => {
+        if (value === '' || value === undefined || value === null) {
+          return null;
+        }
+
+        // Date 객체로 들어온 경우
+        if (value instanceof Date) {
+          return value.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+
+        if (typeof value === 'string') {
+          // 이미 YYYY-MM-DD 형식이면 그대로
+          if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+            return value;
+          }
+          // YYYY-MM 형식이면 1일로 보정
+          if (/^\d{4}-\d{2}$/.test(value)) {
+            return `${value}-01`;
+          }
+        }
+
+        console.warn('[normalizeYearMonthToDate] unexpected value:', value);
+        return value;
+      };
+
+      payload.subscriptionStartDate = normalizeYearMonthToDate(
+        payload.subscriptionStartDate
+      );
+      payload.fSubscriptionStartDate = normalizeYearMonthToDate(
+        payload.fSubscriptionStartDate
+      );
+
+      // ===== priorityCriteria 정제 =====
+      // 백엔드: List<String>
+      // 프론트: 단일 선택일 경우 "view" 같은 string으로 들어올 수 있으니 보정
+      if (typeof payload.priorityCriteria === 'string') {
+        // 예: "view" → ["view"]
+        payload.priorityCriteria = [payload.priorityCriteria];
+      } else if (Array.isArray(payload.priorityCriteria)) {
+        // 빈 배열이면 null로 보냄
+        if (payload.priorityCriteria.length === 0) {
+          payload.priorityCriteria = null;
+        }
+      } else if (payload.priorityCriteria === undefined) {
+        payload.priorityCriteria = null;
+      }
+
+      console.log('[submit] cleaned payload = ', payload);
+
+      // -------------------------------
+      // 2) 설문 저장
+      // -------------------------------
+      const { surveyId } = await api.createSurvey(payload);
+      console.log('[submit] ✅ survey created. surveyId =', surveyId);
+
+      // -------------------------------
+      // 3) FastAPI 연동 통해 플랜 생성
+      //    - Spring: POST /api/plans/ai/{surveyId} → FastAPI 호출 → Plan 저장 후 반환
+      // -------------------------------
+      console.log('[submit] ▶ calling createPlanByAi for surveyId =', surveyId);
+      const plan = await api.createPlanByAi(surveyId);
+      console.log('[submit] ✅ AI plan created = ', plan);
+
+      // -------------------------------
+      // 4) 결과 페이지로 이동
+      // -------------------------------
       navigate(`/plan/${surveyId}`);
-    } catch (error) {
-      console.error(error);
-      alert('분석 중 오류가 발생했습니다.');
+    } catch (error: any) {
+      console.error('❌ handleSubmit error = ', error);
+
+      if (error.response) {
+        console.error(
+          '🔍 backend response.status = ',
+          error.response.status
+        );
+        console.error(
+          '🔍 backend response.data = ',
+          JSON.stringify(error.response.data, null, 2)
+        );
+      }
+
+      alert('분석 중 오류가 발생했습니다. 콘솔 로그를 확인해 주세요.');
     } finally {
       setLoading(false);
     }

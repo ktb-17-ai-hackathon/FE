@@ -1,4 +1,5 @@
 // src/pages/PlanResultPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
@@ -17,6 +18,8 @@ const PlanResultPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  console.log('render PlanResultPage', { loading, error, plan });
+
   useEffect(() => {
     if (!surveyId) return;
 
@@ -26,6 +29,7 @@ const PlanResultPage: React.FC = () => {
     api
       .getPlanBySurveyId(Number(surveyId))
       .then((data) => {
+        console.log('getPlanBySurveyId raw =', data);
         setPlan(data);
       })
       .catch((err: unknown) => {
@@ -56,8 +60,36 @@ const PlanResultPage: React.FC = () => {
 
   if (!plan) return <div>데이터를 찾을 수 없습니다.</div>;
 
-  const { llmRawResult, recommendedHorizon, confidenceLevel, createdAt } = plan;
-  const { summary, diagnosis, timeHorizonStrategy, chartData } = llmRawResult;
+  // ✅ llmRawResult 방어
+  if (!plan.llmRawResult) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">플랜 데이터가 비어 있습니다.</div>
+      </div>
+    );
+  }
+
+  // ✅ 안전하게 꺼내기(부분 필드 누락되어도 화면이 안 죽게)
+  const llm = plan.llmRawResult;
+
+  const summary = llm.summary ?? { title: '', body: '' };
+  const diagnosis =
+    llm.diagnosis ?? {
+      canBuyWithCheongyak: false,
+      confidenceLevel: plan.confidenceLevel ?? 'MEDIUM',
+      reasons: [],
+    };
+  const timeHorizonStrategy =
+    llm.timeHorizonStrategy ?? { now: '', threeYears: '', fiveYears: '' };
+  const chartData = llm.chartData ?? { savingProjectionByYear: [] };
+  const planMeta = llm.planMeta ?? { recommendedHorizon: '', reason: '' };
+
+  const reasons = Array.isArray(diagnosis.reasons) ? diagnosis.reasons : [];
+  const projection = Array.isArray(chartData.savingProjectionByYear)
+    ? chartData.savingProjectionByYear
+    : [];
+
+  const { recommendedHorizon, confidenceLevel, createdAt } = plan;
 
   // 신뢰도에 따른 색상 뱃지
   const getConfidenceColor = (level?: string) => {
@@ -73,6 +105,10 @@ const PlanResultPage: React.FC = () => {
     }
   };
 
+  const createdAtText = createdAt
+    ? new Date(createdAt).toLocaleString()
+    : '-';
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -83,9 +119,7 @@ const PlanResultPage: React.FC = () => {
               <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider">
                 Survey #{plan.surveyId}
               </span>
-              <span className="text-gray-400 text-xs">
-                {new Date(createdAt).toLocaleString()}
-              </span>
+              <span className="text-gray-400 text-xs">{createdAtText}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               AI 청약·주거 설계 리포트
@@ -127,16 +161,23 @@ const PlanResultPage: React.FC = () => {
                   : '🤔 현재로서는 전략 수정이 필요합니다.'}
               </p>
             </div>
+
             <ul className="space-y-3">
-              {diagnosis.reasons.map((reason: string, idx: number) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-3 text-gray-600"
-                >
-                  <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                  <span>{reason}</span>
+              {reasons.length === 0 ? (
+                <li className="text-gray-500">
+                  진단 사유 데이터가 아직 없습니다.
                 </li>
-              ))}
+              ) : (
+                reasons.map((reason: string, idx: number) => (
+                  <li
+                    key={idx}
+                    className="flex items-start gap-3 text-gray-600"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                    <span>{reason}</span>
+                  </li>
+                ))
+              )}
             </ul>
           </div>
         </div>
@@ -208,15 +249,16 @@ const PlanResultPage: React.FC = () => {
           <div className="bg-slate-900 rounded-xl p-6 font-mono text-sm overflow-x-auto">
             <p className="text-gray-400 mb-2">// 그래프 영역 (Recharts 연동 예정)</p>
             <pre className="text-green-400">
-              {JSON.stringify(chartData.savingProjectionByYear, null, 2)}
+              {JSON.stringify(projection, null, 2)}
             </pre>
           </div>
+
           {/* Recommendation Meta */}
           <div className="mt-4 p-4 bg-gray-50 rounded-xl text-sm text-gray-600 flex gap-2">
             <span className="font-bold shrink-0">추천 기간:</span>
             <span>
-              {recommendedHorizon ?? llmRawResult.planMeta.recommendedHorizon} -{' '}
-              {llmRawResult.planMeta.reason}
+              {(recommendedHorizon ?? planMeta.recommendedHorizon) || '-'} -{' '}
+              {planMeta.reason || '-'}
             </span>
           </div>
         </div>
