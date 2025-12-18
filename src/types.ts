@@ -1,30 +1,15 @@
 // src/types.ts
 import axios from "axios";
 
-// 설문 타입 전부 재export
+// 설문/플랜 타입 전부 재export
 export * from "./types/survey.types";
-import type { SurveyCreateRequest, PriorityCriteria } from "./types/survey.types";
+import type {
+  SurveyCreateRequest,
+  PlanCreateRequest,
+  PlanResponseDto,
+} from "./types/survey.types";
 
-// ===== 플랜 관련 타입 (백엔드 PlanHorizon / ConfidenceLevel 과 맞춤) =====
-export type PlanHorizon = "SHORT_3" | "MID_5" | "LONG_10";
-export type ConfidenceLevel = "LOW" | "MEDIUM" | "HIGH";
-
-export interface PlanCreateRequest {
-  surveyId: number;
-  llmRawResult: any;              // FastAPI/LLM이 만들어 준 JSON 그대로
-  recommendedHorizon: PlanHorizon;
-  confidenceLevel: ConfidenceLevel;
-}
-
-export interface PlanResponseDto {
-  planId: number;
-  surveyId: number;
-  llmRawResult: any;
-  recommendedHorizon: PlanHorizon | null;
-  confidenceLevel: ConfidenceLevel | null;
-  createdAt: string; // LocalDateTime → ISO 문자열
-}
-
+// 공통 응답 래퍼
 interface ApiResponse<T> {
   success: boolean;
   message: string;
@@ -40,37 +25,66 @@ const http = axios.create({
 export const api = {
   /**
    * 설문 저장: POST /api/surveys
-   * 프론트는 priorityCriteria 를 배열로 들고 있고,
-   * 백엔드는 String 으로 받으니까 여기서 변환해줍니다.
    */
   async createSurvey(payload: SurveyCreateRequest): Promise<{ surveyId: number }> {
     const { priorityCriteria, ...rest } = payload;
 
-    // BE DTO: String priorityCriteria  (예: "transport,school,price")
+    // priorityCriteria:
+    // - 배열이면 그대로 전송
+    // - 문자열("view")로 들어온 경우 안전하게 [string]으로 감싸기
+    // - 없으면 빈 배열 또는 null (백엔드 List<String>에 맞춰 보냄)
+    const normalizedPriority =
+      Array.isArray(priorityCriteria)
+        ? priorityCriteria
+        : priorityCriteria
+        ? [priorityCriteria]
+        : [];
+
     const apiPayload = {
       ...rest,
-      priorityCriteria:
-        priorityCriteria && priorityCriteria.length > 0
-          ? (priorityCriteria as PriorityCriteria[]).join(",")
-          : null,
+      priorityCriteria: normalizedPriority,
     };
 
-    const res = await http.post<ApiResponse<{ surveyId: number }>>(
-      "/surveys",
-      apiPayload
-    );
-    // 응답: { success, message, data: { surveyId } }
-    return res.data.data;
+    console.log("🚀 [createSurvey] payload:", JSON.stringify(apiPayload, null, 2));
+
+    try {
+      const res = await http.post<ApiResponse<{ surveyId: number }>>(
+        "/surveys",
+        apiPayload
+      );
+      console.log("✅ [createSurvey] response:", res.data);
+      return res.data.data;
+    } catch (error: any) {
+      console.error(
+        "❌ [createSurvey] error:",
+        error.response?.data || error.message
+      );
+      throw error;
+    }
   },
 
   /**
-   * 플랜 생성: POST /api/plans
-   * (실제 연동 시에는 FastAPI 쪽에서 LLM 결과 받아서 채워줄 예정)
+   * (선택) 기존 플랜 생성: POST /api/plans
+   * - mock LLM 결과를 직접 넣어서 테스트할 때만 사용
+   * - FastAPI 연동 후에는 createPlanByAi(surveyId)를 주로 사용
    */
   async createPlan(payload: PlanCreateRequest): Promise<{ planId: number }> {
     const res = await http.post<ApiResponse<{ planId: number }>>(
       "/plans",
       payload
+    );
+    return res.data.data;
+  },
+
+  /**
+   * 🔥 FastAPI + 백엔드 통해 플랜 생성: POST /api/plans/ai/{surveyId}
+   * - body는 비워서 보냄 ({})
+   * - 응답으로 PlanResponseDto 전체를 받음
+   */
+  async createPlanByAi(surveyId: number): Promise<PlanResponseDto> {
+    const res = await http.post<ApiResponse<PlanResponseDto>>(
+      `/plans/ai/${surveyId}`,
+      {}
     );
     return res.data.data;
   },
