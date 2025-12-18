@@ -240,7 +240,7 @@ const HomePage: React.FC = () => {
                         최근 분석 결과
                       </p>
                       <p className="text-xs text-indigo-600 mt-1">
-                        Survey #{latestSurveyId}
+                        Survey
                       </p>
                     </div>
                     <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">

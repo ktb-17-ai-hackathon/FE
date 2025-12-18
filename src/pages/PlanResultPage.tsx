@@ -206,7 +206,7 @@ const PlanResultPage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider">
-                Survey #{plan.surveyId}
+                Survey
               </span>
               <span className="text-gray-400 text-xs">{createdAtText}</span>
             </div>
