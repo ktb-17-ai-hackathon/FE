@@ -1,13 +1,7 @@
-// src/pages/SurveyPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
-import {
-  api,
-  type SurveyCreateRequest,
-  type PlanHorizon,
-  type ConfidenceLevel,
-} from '../types';
+import { api, type SurveyCreateRequest } from '../types';
 
 // 스텝 컴포넌트들
 import Step1BasicInfo from '../components/survey/Step1BasicInfo';
@@ -28,11 +22,44 @@ const STEP_TITLES = [
   '집 취향',
 ];
 
+type LoadingModalProps = {
+  open: boolean;
+};
+
+const LoadingModal: React.FC<LoadingModalProps> = ({ open }) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999]">
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="absolute inset-0 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl border border-gray-100 p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+              <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+            </div>
+            <div>
+              <div className="text-lg font-bold text-gray-900">
+                잠시만 기다려주세요
+              </div>
+              <p className="mt-1 text-sm text-gray-600">
+                AI 설계를 생성 중입니다.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const SurveyPage: React.FC = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState<SurveyCreateRequest>({});
+  const [formData, setFormData] = useState<SurveyCreateRequest>(
+    {} as SurveyCreateRequest
+  );
 
   const handleNext = () => {
     if (currentStep < TOTAL_STEPS) {
@@ -54,58 +81,71 @@ const SurveyPage: React.FC = () => {
     try {
       setLoading(true);
 
-      // 1) 설문 저장
-      const { surveyId } = await api.createSurvey(formData);
+      console.log('[submit] raw formData = ', formData);
 
-      // 2) FastAPI 연동 전까지는 프론트에서 임시 mock LLM 결과 만들어서 보내기
-      const mockLlmResult = {
-        summary: {
-          title: '5년 안에 수도권 아파트 도전이 가능합니다.',
-          body:
-            '현재 연 소득과 자산, 저축 여력을 고려했을 때, 5년 안에 실거주용 아파트 청약을 목표로 하는 전략이 유효합니다.',
-        },
-        diagnosis: {
-          canBuyWithCheongyak: true,
-          confidenceLevel: 'MEDIUM',
-          reasons: [
-            '무주택 + 청약 통장 보유',
-            '현재 자산과 저축 여력이 목표 지역 입지 대비 나쁘지 않습니다.',
-          ],
-        },
-        timeHorizonStrategy: {
-          now: '지금은 청약 통장 납입액을 최소 기준 이상으로 맞추고, 부채 비율을 관리하는 시기입니다.',
-          threeYears:
-            '3년 차에는 청약 가점, 무주택 기간, 소득 요건을 다시 점검하고, 직장/생활권에 맞는 후보 지역을 2~3곳으로 압축하세요.',
-          fiveYears:
-            '5년 차에는 실제 청약 일정과 분양 공고를 캘린더로 관리하면서, 계약금/중도금 마련 플랜을 구체화하는 단계입니다.',
-        },
-        chartData: {
-          savingProjectionByYear: [
-            { year: 0, amount: formData.currentFinancialAssets ?? 80000000 },
-            { year: 1, amount: 105000000 },
-            { year: 2, amount: 130000000 },
-            { year: 3, amount: 155000000 },
-            { year: 4, amount: 180000000 },
-            { year: 5, amount: 205000000 },
-          ],
-        },
-        planMeta: {
-          recommendedHorizon: 'MID_5',
-          reason: '5년 차에 가용 예산이 목표치에 도달하는 구간으로 추정됩니다.',
-        },
-      };
+      // 1) formData 정제
+      const payload: any = { ...formData };
 
-      await api.createPlan({
-        surveyId,
-        llmRawResult: mockLlmResult,
-        recommendedHorizon: 'MID_5' as PlanHorizon,
-        confidenceLevel: 'MEDIUM' as ConfidenceLevel,
+      const numberFields = [
+        'age', 'childCount', 'fChildCount', 'annualIncome',
+        'annualSideIncome', 'monthlySavingAmount', 'currentFinancialAssets',
+        'additionalAssets', 'targetSavingRate', 'debtPrincipal',
+        'debtPrincipalPaid', 'monthlyDebtPayment', 'monthlySubscriptionAmount',
+        'totalSubscriptionBalance', 'unhousedStartYear',
+      ] as const;
+
+      numberFields.forEach((key) => {
+        const v = payload[key];
+        if (v === '' || v === undefined) {
+          payload[key] = null;
+        } else if (typeof v === 'string') {
+          const parsed = Number(v);
+          payload[key] = Number.isNaN(parsed) ? null : parsed;
+        }
       });
 
+      const normalizeYearMonthToDate = (value: any) => {
+        if (value === '' || value === undefined || value === null) return null;
+        if (value instanceof Date) return value.toISOString().slice(0, 10);
+        if (typeof value === 'string') {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+          if (/^\d{4}-\d{2}$/.test(value)) return `${value}-01`;
+        }
+        return value;
+      };
+
+      payload.subscriptionStartDate = normalizeYearMonthToDate(payload.subscriptionStartDate);
+      payload.fSubscriptionStartDate = normalizeYearMonthToDate(payload.fSubscriptionStartDate);
+
+      if (typeof payload.priorityCriteria === 'string') {
+        payload.priorityCriteria = [payload.priorityCriteria];
+      } else if (Array.isArray(payload.priorityCriteria)) {
+        if (payload.priorityCriteria.length === 0) payload.priorityCriteria = null;
+      } else if (payload.priorityCriteria === undefined) {
+        payload.priorityCriteria = null;
+      }
+
+      console.log('[submit] cleaned payload = ', payload);
+
+      // 2) 설문 저장
+      const { surveyId } = await api.createSurvey(payload);
+      console.log('[submit] ✅ survey created. surveyId =', surveyId);
+
+      // 3) AI 플랜 생성
+      console.log('[submit] ▶ calling createPlanByAi for surveyId =', surveyId);
+      const plan = await api.createPlanByAi(surveyId);
+      console.log('[submit] ✅ AI plan created = ', plan);
+
+      // 4) 결과 페이지로 이동
+      console.log('[submit] 📍 navigating to /plan/' + surveyId);
       navigate(`/plan/${surveyId}`);
-    } catch (error) {
-      console.error(error);
-      alert('분석 중 오류가 발생했습니다.');
+
+    } catch (error: any) {
+      console.error('❌ handleSubmit error = ', error);
+      if (error.response) {
+        console.error('🔍 backend response:', error.response);
+      }
+      alert('분석 중 오류가 발생했습니다. 콘솔 로그를 확인해 주세요.');
     } finally {
       setLoading(false);
     }
@@ -126,9 +166,7 @@ const SurveyPage: React.FC = () => {
       case 4:
         return <Step4Debt data={formData} updateData={updateFormData} />;
       case 5:
-        return (
-          <Step5Subscription data={formData} updateData={updateFormData} />
-        );
+        return <Step5Subscription data={formData} updateData={updateFormData} />;
       case 6:
         return <Step6Preference data={formData} updateData={updateFormData} />;
       default:
@@ -138,14 +176,14 @@ const SurveyPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
+      <LoadingModal open={loading} />
+
       <div className="max-w-3xl mx-auto">
-        {/* 헤더 */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">청약Assist</h1>
           <p className="text-gray-600">나만의 청약·주거 설계</p>
         </div>
 
-        {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex justify-between mb-3">
             <span className="text-sm font-semibold text-gray-700">
@@ -161,7 +199,7 @@ const SurveyPage: React.FC = () => {
               style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
             />
           </div>
-          {/* 스텝 인디케이터 */}
+
           <div className="flex justify-between mt-3">
             {STEP_TITLES.map((title, idx) => {
               const stepNumber = idx + 1;
@@ -172,11 +210,7 @@ const SurveyPage: React.FC = () => {
                 <div
                   key={idx}
                   className={`flex flex-col items-center ${
-                    isCurrent
-                      ? 'text-blue-600'
-                      : isDone
-                      ? 'text-green-600'
-                      : 'text-gray-400'
+                    isCurrent ? 'text-blue-600' : isDone ? 'text-green-600' : 'text-gray-400'
                   }`}
                 >
                   <div
@@ -197,12 +231,10 @@ const SurveyPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Step Content */}
         <div className="bg-white rounded-3xl shadow-xl p-8 mb-6 min-h-[500px]">
           {renderStep()}
         </div>
 
-        {/* Navigation Buttons */}
         <div className="flex justify-between gap-4">
           <button
             onClick={handlePrev}

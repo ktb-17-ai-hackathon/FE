@@ -1,5 +1,6 @@
 // src/pages/PlanResultPage.tsx
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   CheckCircle,
@@ -11,12 +12,37 @@ import {
 } from 'lucide-react';
 import { api, type PlanResponseDto } from '../types';
 
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
+
+type ProjectionPoint = {
+  year: number;
+  amount: number;
+};
+
+type ChartPoint = {
+  year: number;
+  yearLabel: string;
+  amount: number;
+};
+
 const PlanResultPage: React.FC = () => {
   const { surveyId } = useParams<{ surveyId: string }>();
+
   const [plan, setPlan] = useState<PlanResponseDto | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // =========================
+  // 1) Fetch
+  // =========================
   useEffect(() => {
     if (!surveyId) return;
 
@@ -26,6 +52,7 @@ const PlanResultPage: React.FC = () => {
     api
       .getPlanBySurveyId(Number(surveyId))
       .then((data) => {
+        console.log('getPlanBySurveyId raw =', data);
         setPlan(data);
       })
       .catch((err: unknown) => {
@@ -35,31 +62,61 @@ const PlanResultPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [surveyId]);
 
-  if (loading)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-12 w-12 bg-blue-200 rounded-full mb-4" />
-          <div className="text-gray-400 font-medium">
-            결과를 불러오는 중...
-          </div>
-        </div>
-      </div>
-    );
+  // =========================
+  // 2) Hooks는 항상 호출되게 (Hook order fix)
+  // =========================
+  const llm = plan?.llmRawResult;
 
-  if (error)
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-red-500 font-semibold">{error}</div>
-      </div>
-    );
+  const summary = llm?.summary ?? { title: '', body: '' };
+  const diagnosis =
+    llm?.diagnosis ?? {
+      canBuyWithCheongyak: false,
+      confidenceLevel: plan?.confidenceLevel ?? 'MEDIUM',
+      reasons: [],
+    };
+  const timeHorizonStrategy =
+    llm?.timeHorizonStrategy ?? { now: '', threeYears: '', fiveYears: '' };
+  const planMeta = llm?.planMeta ?? { recommendedHorizon: '', reason: '' };
 
-  if (!plan) return <div>데이터를 찾을 수 없습니다.</div>;
+  const reasons = Array.isArray(diagnosis?.reasons) ? diagnosis.reasons : [];
 
-  const { llmRawResult, recommendedHorizon, confidenceLevel, createdAt } = plan;
-  const { summary, diagnosis, timeHorizonStrategy, chartData } = llmRawResult;
+  const projectionRaw: ProjectionPoint[] = Array.isArray(
+    llm?.chartData?.savingProjectionByYear,
+  )
+    ? (llm!.chartData!.savingProjectionByYear as ProjectionPoint[])
+    : [];
 
-  // 신뢰도에 따른 색상 뱃지
+  const formatWon = (value: number) => {
+    if (!Number.isFinite(value)) return '-';
+    const eok = Math.floor(value / 100_000_000);
+    const man = Math.floor((value % 100_000_000) / 10_000);
+
+    if (eok <= 0) return `${Math.floor(value / 10_000).toLocaleString()}만원`;
+    if (man <= 0) return `${eok.toLocaleString()}억`;
+    return `${eok.toLocaleString()}억 ${man.toLocaleString()}만원`;
+  };
+
+  const chartData: ChartPoint[] = useMemo(() => {
+    return projectionRaw
+      .filter(
+        (d) =>
+          d &&
+          typeof d.year === 'number' &&
+          typeof d.amount === 'number' &&
+          Number.isFinite(d.year) &&
+          Number.isFinite(d.amount),
+      )
+      .map((d) => ({
+        year: d.year,
+        yearLabel: `${d.year}Y`,
+        amount: d.amount,
+      }));
+  }, [projectionRaw]);
+
+  const createdAtText = plan?.createdAt
+    ? new Date(plan.createdAt).toLocaleString()
+    : '-';
+
   const getConfidenceColor = (level?: string) => {
     switch (level) {
       case 'HIGH':
@@ -73,6 +130,80 @@ const PlanResultPage: React.FC = () => {
     }
   };
 
+  const confidenceText =
+    plan?.confidenceLevel || diagnosis?.confidenceLevel || '-';
+
+  const recommendedHorizonText =
+    plan?.recommendedHorizon ?? planMeta.recommendedHorizon ?? '-';
+
+  const CustomTooltip = ({
+    active,
+    payload,
+    label,
+  }: {
+    active?: boolean;
+    payload?: Array<{ value?: number }>;
+    label?: string;
+  }) => {
+    if (!active || !payload?.length) return null;
+
+    const amount = Number(payload[0]?.value);
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg shadow px-3 py-2 text-sm">
+        <div className="font-semibold text-gray-800">{label}</div>
+        <div className="text-gray-600 mt-1">
+          예상 자산:{' '}
+          <span className="font-semibold text-gray-900">
+            {formatWon(amount)}
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // =========================
+  // 3) Early return
+  // =========================
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-12 w-12 bg-blue-200 rounded-full mb-4" />
+          <div className="text-gray-400 font-medium">
+            결과를 불러오는 중...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-red-500 font-semibold">{error}</div>
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">데이터를 찾을 수 없습니다.</div>
+      </div>
+    );
+  }
+
+  if (!plan.llmRawResult) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">플랜 데이터가 비어 있습니다.</div>
+      </div>
+    );
+  }
+
+  // =========================
+  // 4) Render
+  // =========================
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
@@ -83,25 +214,25 @@ const PlanResultPage: React.FC = () => {
               <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider">
                 Survey #{plan.surveyId}
               </span>
-              <span className="text-gray-400 text-xs">
-                {new Date(createdAt).toLocaleString()}
-              </span>
+              <span className="text-gray-400 text-xs">{createdAtText}</span>
             </div>
+
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               AI 청약·주거 설계 리포트
             </h1>
           </div>
+
           <div
             className={`px-4 py-2 rounded-full font-medium text-sm flex items-center gap-1.5 ${getConfidenceColor(
-              confidenceLevel || diagnosis.confidenceLevel,
+              confidenceText,
             )}`}
           >
             <CheckCircle className="w-4 h-4" />
-            신뢰도: {confidenceLevel || diagnosis.confidenceLevel}
+            신뢰도: {confidenceText}
           </div>
         </div>
 
-        {/* 1. Summary Card (Highlight) */}
+        {/* 1. Summary */}
         <div className="bg-white rounded-2xl shadow-lg border-l-4 border-blue-600 overflow-hidden">
           <div className="p-6 sm:p-8">
             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 leading-snug">
@@ -113,13 +244,14 @@ const PlanResultPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 2. Diagnosis & Reasons */}
+        {/* 2. Diagnosis */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-3 bg-white rounded-2xl shadow-sm p-6">
             <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800 mb-4">
               <AlertCircle className="w-5 h-5 text-blue-600" />
               청약 가능성 진단
             </h3>
+
             <div className="bg-blue-50 rounded-xl p-4 mb-4">
               <p className="text-blue-800 font-semibold text-lg text-center">
                 {diagnosis.canBuyWithCheongyak
@@ -127,16 +259,18 @@ const PlanResultPage: React.FC = () => {
                   : '🤔 현재로서는 전략 수정이 필요합니다.'}
               </p>
             </div>
+
             <ul className="space-y-3">
-              {diagnosis.reasons.map((reason: string, idx: number) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-3 text-gray-600"
-                >
-                  <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
-                  <span>{reason}</span>
-                </li>
-              ))}
+              {reasons.length === 0 ? (
+                <li className="text-gray-500">진단 사유 데이터가 아직 없습니다.</li>
+              ) : (
+                reasons.map((reason: string, idx: number) => (
+                  <li key={idx} className="flex items-start gap-3 text-gray-600">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />
+                    <span>{reason}</span>
+                  </li>
+                ))
+              )}
             </ul>
           </div>
         </div>
@@ -147,50 +281,41 @@ const PlanResultPage: React.FC = () => {
             <Calendar className="w-5 h-5 text-blue-600" />
             기간별 실행 전략
           </h3>
+
           <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-            {/* 1년차 */}
+            {/* 1Y */}
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-sm font-bold text-slate-600">1Y</span>
               </div>
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <div className="flex items-center justify-between space-x-2 mb-1">
-                  <div className="font-bold text-slate-900">지금 ~ 1년</div>
-                </div>
+                <div className="font-bold text-slate-900 mb-1">지금 ~ 1년</div>
                 <div className="text-slate-500 text-sm">
                   {timeHorizonStrategy.now}
                 </div>
               </div>
             </div>
 
-            {/* 3년차 */}
+            {/* 3Y */}
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-blue-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-sm font-bold text-blue-600">3Y</span>
               </div>
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-blue-100 shadow-sm ring-1 ring-blue-100">
-                <div className="flex items-center justify-between space-x-2 mb-1">
-                  <div className="font-bold text-blue-900">
-                    3년 차 (준비기)
-                  </div>
-                </div>
+                <div className="font-bold text-blue-900 mb-1">3년 차 (준비기)</div>
                 <div className="text-slate-500 text-sm">
                   {timeHorizonStrategy.threeYears}
                 </div>
               </div>
             </div>
 
-            {/* 5년차 */}
+            {/* 5Y */}
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-indigo-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-sm font-bold text-indigo-600">5Y</span>
               </div>
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-indigo-100 shadow-sm ring-1 ring-indigo-100">
-                <div className="flex items-center justify-between space-x-2 mb-1">
-                  <div className="font-bold text-indigo-900">
-                    5년 차 (목표 달성)
-                  </div>
-                </div>
+                <div className="font-bold text-indigo-900 mb-1">5년 차 (목표 달성)</div>
                 <div className="text-slate-500 text-sm">
                   {timeHorizonStrategy.fiveYears}
                 </div>
@@ -199,25 +324,73 @@ const PlanResultPage: React.FC = () => {
           </div>
         </div>
 
-        {/* 4. Chart Placeholder */}
+        {/* 4. Chart */}
         <div className="bg-white rounded-2xl shadow-sm p-6">
           <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800 mb-4">
             <TrendingUp className="w-5 h-5 text-blue-600" />
             5년 자산 성장 시뮬레이션
           </h3>
-          <div className="bg-slate-900 rounded-xl p-6 font-mono text-sm overflow-x-auto">
-            <p className="text-gray-400 mb-2">// 그래프 영역 (Recharts 연동 예정)</p>
-            <pre className="text-green-400">
-              {JSON.stringify(chartData.savingProjectionByYear, null, 2)}
-            </pre>
-          </div>
+
+          {chartData.length === 0 ? (
+            <div className="bg-gray-50 rounded-xl p-4 text-gray-500">
+              그래프 데이터가 없습니다.
+            </div>
+          ) : (
+            <div className="w-full h-72 bg-white rounded-xl border border-gray-100">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 20, right: 24, left: 10, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="yearLabel" />
+                  <YAxis tickFormatter={(v) => formatWon(Number(v))} width={90} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line
+                    type="monotone"
+                    dataKey="amount"
+                    strokeWidth={3}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
           {/* Recommendation Meta */}
           <div className="mt-4 p-4 bg-gray-50 rounded-xl text-sm text-gray-600 flex gap-2">
             <span className="font-bold shrink-0">추천 기간:</span>
             <span>
-              {recommendedHorizon ?? llmRawResult.planMeta.recommendedHorizon} -{' '}
-              {llmRawResult.planMeta.reason}
+              {recommendedHorizonText} - {planMeta.reason || '-'}
             </span>
+          </div>
+
+          {/* ✅ 안내 문구(요청하신 자리) */}
+          <div className="mt-4 space-y-3">
+            {/* 1) 대출 연계 수수료 안내 */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <div className="font-bold mb-1">대출 연계 수수료(수익 창출)에 대한 안내</div>
+              <p className="leading-relaxed">
+                분석 결과에 포함된 일부 대출 상품은 제휴 금융사와 연계되어 있으며,
+                이용 시 서비스 운영을 위한 제휴 수수료가 발생할 수 있습니다.
+              </p>
+              <p className="leading-relaxed mt-2 font-medium">
+                이는 사용자에게 추가 비용을 부과하는 것은 아닙니다.
+              </p>
+            </div>
+
+            {/* 2) 맹신 금지 / 재분석 권장 */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
+              <div className="font-bold mb-1">분석 결과를 맹신하지 말아주세요</div>
+              <p className="leading-relaxed">
+                주거 계획은 한 번 세우고 끝나는 것이 아니라, 삶의 변화에 따라 계속 조정되는
+                설계에 가깝습니다.
+              </p>
+              <p className="leading-relaxed mt-2">
+                소득·가족·대출·청약 제도에 변화가 생기면 다시 한 번 분석을 받아보는 것이 좋아요.
+              </p>
+            </div>
           </div>
         </div>
 
