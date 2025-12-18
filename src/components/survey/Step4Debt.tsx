@@ -8,15 +8,28 @@ interface Props {
 }
 
 const Step4Debt: React.FC<Props> = ({ data, updateData }) => {
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-blue-50 focus:bg-white";
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-blue-50 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const labelClass = "block text-sm font-semibold text-gray-700 mb-2";
   const hintClass = "text-xs text-gray-500 mt-1.5 flex items-start gap-1";
+
+  // 만원을 원으로 변환
+  const manwonToWon = (manwon: number): number => {
+    return manwon * 10000;
+  };
+
+  // 원을 만원으로 변환
+  const wonToManwon = (won: number): number => {
+    return won / 10000;
+  };
 
   const formatCurrency = (value: number) => {
     if (value >= 100000000) {
       return (value / 100000000).toFixed(1) + '억원';
     }
-    return (value / 10000000).toFixed(1) + '천만원';
+    if (value >= 10000000) {
+      return (value / 10000000).toFixed(1) + '천만원';
+    }
+    return (value / 10000).toFixed(0) + '만원';
   };
 
   return (
@@ -26,7 +39,7 @@ const Step4Debt: React.FC<Props> = ({ data, updateData }) => {
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
           <CreditCard className="w-8 h-8 text-white" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">돈 흐름 - 부채</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">자금 흐름 - 부채</h2>
         <p className="text-gray-600">현재 갚고 있는 대출이나 빚이 있나요?</p>
       </div>
 
@@ -118,17 +131,20 @@ const Step4Debt: React.FC<Props> = ({ data, updateData }) => {
               <TrendingDown className="w-4 h-4 inline mr-1" />
               현재 남아 있는 대출 원금은 총 얼마인가요?
             </label>
-            <input
-              type="number"
-              value={data.debtPrincipal || ''}
-              onChange={(e) => updateData({ debtPrincipal: Number(e.target.value) })}
-              className={inputClass}
-              placeholder="예: 50000000 (5천만원), 없으면 0"
-              step="5000000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={data.debtPrincipal ? wonToManwon(data.debtPrincipal) : ''}
+                onChange={(e) => updateData({ debtPrincipal: manwonToWon(Number(e.target.value)) })}
+                className={inputClass}
+                placeholder="예: 5000 (5천만원), 없으면 0"
+                step="500"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+            </div>
             {data.debtPrincipal && data.debtPrincipal > 0 && (
               <div className="mt-2 text-sm text-orange-600 font-semibold">
-                약 {formatCurrency(data.debtPrincipal)}
+                💰 {formatCurrency(data.debtPrincipal)}
               </div>
             )}
             <p className={hintClass}>
@@ -182,17 +198,20 @@ const Step4Debt: React.FC<Props> = ({ data, updateData }) => {
               <History className="w-4 h-4 inline mr-1" />
               지금까지 대출을 얼마나 갚았나요?
             </label>
-            <input
-              type="number"
-              value={data.debtPrincipalPaid || ''}
-              onChange={(e) => updateData({ debtPrincipalPaid: Number(e.target.value) })}
-              className={inputClass}
-              placeholder="원금 기준, 없으면 0"
-              step="1000000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={data.debtPrincipalPaid ? wonToManwon(data.debtPrincipalPaid) : ''}
+                onChange={(e) => updateData({ debtPrincipalPaid: manwonToWon(Number(e.target.value)) })}
+                className={inputClass}
+                placeholder="원금 기준, 없으면 0"
+                step="100"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+            </div>
             {data.debtPrincipalPaid && data.debtPrincipalPaid > 0 && (
               <div className="mt-2 text-sm text-blue-600 font-medium">
-                약 {formatCurrency(data.debtPrincipalPaid)} 상환 완료
+                💰 약 {formatCurrency(data.debtPrincipalPaid)} 상환 완료
               </div>
             )}
             <p className={hintClass}>
@@ -207,22 +226,25 @@ const Step4Debt: React.FC<Props> = ({ data, updateData }) => {
               <DollarSign className="w-4 h-4 inline mr-1" />
               매달 대출 상환으로 나가는 금액은 얼마인가요? <span className="text-red-500">*</span>
             </label>
-            <input
-              type="number"
-              value={data.monthlyDebtPayment || ''}
-              onChange={(e) => updateData({ monthlyDebtPayment: Number(e.target.value) })}
-              className={inputClass}
-              placeholder="예: 1000000 (100만원), 없으면 0"
-              step="100000"
-              required
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={data.monthlyDebtPayment ? wonToManwon(data.monthlyDebtPayment) : ''}
+                onChange={(e) => updateData({ monthlyDebtPayment: manwonToWon(Number(e.target.value)) })}
+                className={inputClass}
+                placeholder="예: 100 (100만원), 없으면 0"
+                step="10"
+                required
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+            </div>
             {data.monthlyDebtPayment && data.monthlyDebtPayment > 0 && (
               <div className="mt-2 space-y-1">
                 <div className="text-sm text-orange-600 font-semibold">
-                  월 {(data.monthlyDebtPayment / 10000).toFixed(0)}만원
+                  💰 월 {wonToManwon(data.monthlyDebtPayment)}만원
                 </div>
                 <div className="text-xs text-gray-500">
-                  연간 약 {((data.monthlyDebtPayment * 12) / 10000).toFixed(0)}만원 상환
+                  연간 약 {formatCurrency(data.monthlyDebtPayment * 12)}
                 </div>
               </div>
             )}
@@ -257,7 +279,7 @@ const Step4Debt: React.FC<Props> = ({ data, updateData }) => {
                 <div className="flex justify-between">
                   <span className="text-gray-600">월 상환액</span>
                   <span className="font-semibold text-red-700">
-                    {(data.monthlyDebtPayment / 10000).toFixed(0)}만원
+                    {wonToManwon(data.monthlyDebtPayment)}만원
                   </span>
                 </div>
                 {data.debtInterestRateBand && (

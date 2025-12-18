@@ -3,12 +3,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
-  CheckCircle,
   AlertCircle,
   TrendingUp,
   Calendar,
   ArrowLeft,
   CheckCircle2,
+  FileText,
+  Home, // ✅ 추가
 } from 'lucide-react';
 import { api, type PlanResponseDto } from '../types';
 
@@ -21,6 +22,8 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts';
+
+import { loadCheongyakScoreFromStorage } from '../utils/cheongyakScore';
 
 type ProjectionPoint = {
   year: number;
@@ -40,9 +43,6 @@ const PlanResultPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // =========================
-  // 1) Fetch
-  // =========================
   useEffect(() => {
     if (!surveyId) return;
 
@@ -62,9 +62,6 @@ const PlanResultPage: React.FC = () => {
       .finally(() => setLoading(false));
   }, [surveyId]);
 
-  // =========================
-  // 2) Hooks는 항상 호출되게 (Hook order fix)
-  // =========================
   const llm = plan?.llmRawResult;
 
   const summary = llm?.summary ?? { title: '', body: '' };
@@ -77,6 +74,11 @@ const PlanResultPage: React.FC = () => {
   const timeHorizonStrategy =
     llm?.timeHorizonStrategy ?? { now: '', threeYears: '', fiveYears: '' };
   const planMeta = llm?.planMeta ?? { recommendedHorizon: '', reason: '' };
+  const report = llm?.report ?? '';
+
+  console.log('🔍 [PlanResultPage] llm =', llm);
+  console.log('🔍 [PlanResultPage] report =', report);
+  console.log('🔍 [PlanResultPage] report exists?', !!report);
 
   const reasons = Array.isArray(diagnosis?.reasons) ? diagnosis.reasons : [];
 
@@ -117,24 +119,13 @@ const PlanResultPage: React.FC = () => {
     ? new Date(plan.createdAt).toLocaleString()
     : '-';
 
-  const getConfidenceColor = (level?: string) => {
-    switch (level) {
-      case 'HIGH':
-        return 'bg-green-100 text-green-700';
-      case 'MEDIUM':
-        return 'bg-yellow-100 text-yellow-700';
-      case 'LOW':
-        return 'bg-red-100 text-red-700';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const confidenceText =
-    plan?.confidenceLevel || diagnosis?.confidenceLevel || '-';
-
   const recommendedHorizonText =
     plan?.recommendedHorizon ?? planMeta.recommendedHorizon ?? '-';
+
+  const score = useMemo(() => {
+    const sid = plan?.surveyId ?? (surveyId ? Number(surveyId) : null);
+    return loadCheongyakScoreFromStorage(Number.isFinite(sid as number) ? (sid as number) : null);
+  }, [plan?.surveyId, surveyId]);
 
   const CustomTooltip = ({
     active,
@@ -161,17 +152,12 @@ const PlanResultPage: React.FC = () => {
     );
   };
 
-  // =========================
-  // 3) Early return
-  // =========================
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="animate-pulse flex flex-col items-center">
           <div className="h-12 w-12 bg-blue-200 rounded-full mb-4" />
-          <div className="text-gray-400 font-medium">
-            결과를 불러오는 중...
-          </div>
+          <div className="text-gray-400 font-medium">결과를 불러오는 중...</div>
         </div>
       </div>
     );
@@ -201,12 +187,20 @@ const PlanResultPage: React.FC = () => {
     );
   }
 
-  // =========================
-  // 4) Render
-  // =========================
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* ✅ 홈으로 돌아가기 버튼 추가 */}
+        <div className="flex justify-start mb-4">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 hover:border-gray-300 font-medium transition-all shadow-sm"
+          >
+            <Home className="w-4 h-4" />
+            홈으로 돌아가기
+          </Link>
+        </div>
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-2">
           <div>
@@ -216,19 +210,46 @@ const PlanResultPage: React.FC = () => {
               </span>
               <span className="text-gray-400 text-xs">{createdAtText}</span>
             </div>
-
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
               AI 청약·주거 설계 리포트
             </h1>
           </div>
+        </div>
 
-          <div
-            className={`px-4 py-2 rounded-full font-medium text-sm flex items-center gap-1.5 ${getConfidenceColor(
-              confidenceText,
-            )}`}
-          >
-            <CheckCircle className="w-4 h-4" />
-            신뢰도: {confidenceText}
+        {/* 청약 가점 카드 */}
+        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-gray-700">추정 청약 가점</div>
+              <div className="mt-1 text-3xl font-extrabold text-gray-900">
+                {score ? `${score.total}점` : '-'}
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                {score?.note ?? '※ 설문 저장 시 계산된 가점 정보가 없습니다.'}
+              </div>
+            </div>
+            {score && (
+              <div className="text-sm text-gray-600 space-y-1">
+                <div className="flex justify-between gap-4">
+                  <span>무주택기간</span>
+                  <span className="font-semibold text-gray-900">
+                    {score.breakdown.unhousedScore}점
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span>부양가족</span>
+                  <span className="font-semibold text-gray-900">
+                    {score.breakdown.dependentsScore}점
+                  </span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span>가입기간</span>
+                  <span className="font-semibold text-gray-900">
+                    {score.breakdown.subscriptionScore}점
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -238,9 +259,7 @@ const PlanResultPage: React.FC = () => {
             <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 leading-snug">
               {summary.title}
             </h2>
-            <p className="text-gray-600 leading-relaxed text-lg">
-              {summary.body}
-            </p>
+            <p className="text-gray-600 leading-relaxed text-lg">{summary.body}</p>
           </div>
         </div>
 
@@ -251,7 +270,6 @@ const PlanResultPage: React.FC = () => {
               <AlertCircle className="w-5 h-5 text-blue-600" />
               청약 가능성 진단
             </h3>
-
             <div className="bg-blue-50 rounded-xl p-4 mb-4">
               <p className="text-blue-800 font-semibold text-lg text-center">
                 {diagnosis.canBuyWithCheongyak
@@ -259,7 +277,6 @@ const PlanResultPage: React.FC = () => {
                   : '🤔 현재로서는 전략 수정이 필요합니다.'}
               </p>
             </div>
-
             <ul className="space-y-3">
               {reasons.length === 0 ? (
                 <li className="text-gray-500">진단 사유 데이터가 아직 없습니다.</li>
@@ -281,44 +298,32 @@ const PlanResultPage: React.FC = () => {
             <Calendar className="w-5 h-5 text-blue-600" />
             기간별 실행 전략
           </h3>
-
           <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-300 before:to-transparent">
-            {/* 1Y */}
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-slate-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-sm font-bold text-slate-600">1Y</span>
               </div>
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <div className="font-bold text-slate-900 mb-1">지금 ~ 1년</div>
-                <div className="text-slate-500 text-sm">
-                  {timeHorizonStrategy.now}
-                </div>
+                <div className="text-slate-500 text-sm">{timeHorizonStrategy.now}</div>
               </div>
             </div>
-
-            {/* 3Y */}
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-blue-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-sm font-bold text-blue-600">3Y</span>
               </div>
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-blue-100 shadow-sm ring-1 ring-blue-100">
                 <div className="font-bold text-blue-900 mb-1">3년 차 (준비기)</div>
-                <div className="text-slate-500 text-sm">
-                  {timeHorizonStrategy.threeYears}
-                </div>
+                <div className="text-slate-500 text-sm">{timeHorizonStrategy.threeYears}</div>
               </div>
             </div>
-
-            {/* 5Y */}
             <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
               <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-indigo-50 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                 <span className="text-sm font-bold text-indigo-600">5Y</span>
               </div>
               <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-white p-4 rounded-xl border border-indigo-100 shadow-sm ring-1 ring-indigo-100">
                 <div className="font-bold text-indigo-900 mb-1">5년 차 (목표 달성)</div>
-                <div className="text-slate-500 text-sm">
-                  {timeHorizonStrategy.fiveYears}
-                </div>
+                <div className="text-slate-500 text-sm">{timeHorizonStrategy.fiveYears}</div>
               </div>
             </div>
           </div>
@@ -330,7 +335,6 @@ const PlanResultPage: React.FC = () => {
             <TrendingUp className="w-5 h-5 text-blue-600" />
             5년 자산 성장 시뮬레이션
           </h3>
-
           {chartData.length === 0 ? (
             <div className="bg-gray-50 rounded-xl p-4 text-gray-500">
               그래프 데이터가 없습니다.
@@ -357,18 +361,32 @@ const PlanResultPage: React.FC = () => {
               </ResponsiveContainer>
             </div>
           )}
-
-          {/* Recommendation Meta */}
           <div className="mt-4 p-4 bg-gray-50 rounded-xl text-sm text-gray-600 flex gap-2">
             <span className="font-bold shrink-0">추천 기간:</span>
             <span>
               {recommendedHorizonText} - {planMeta.reason || '-'}
             </span>
           </div>
+        </div>
 
-          {/* ✅ 안내 문구(요청하신 자리) */}
-          <div className="mt-4 space-y-3">
-            {/* 1) 대출 연계 수수료 안내 */}
+        {/* 5. Report 섹션 */}
+        {report && (
+          <div className="bg-white rounded-2xl shadow-sm p-6">
+            <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800 mb-4">
+              <FileText className="w-5 h-5 text-blue-600" />
+              상세 분석 리포트
+            </h3>
+            <div className="prose max-w-none">
+              <div className="text-gray-700 leading-relaxed whitespace-pre-line">
+                {report}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 6. 경고 문구 */}
+        <div className="bg-white rounded-2xl shadow-sm p-6">
+          <div className="space-y-3">
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
               <div className="font-bold mb-1">대출 연계 수수료(수익 창출)에 대한 안내</div>
               <p className="leading-relaxed">
@@ -379,8 +397,6 @@ const PlanResultPage: React.FC = () => {
                 이는 사용자에게 추가 비용을 부과하는 것은 아닙니다.
               </p>
             </div>
-
-            {/* 2) 맹신 금지 / 재분석 권장 */}
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
               <div className="font-bold mb-1">분석 결과를 맹신하지 말아주세요</div>
               <p className="leading-relaxed">

@@ -1,15 +1,22 @@
+// src/pages/SurveyPage.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
 import { api, type SurveyCreateRequest } from '../types';
 
-// 스텝 컴포넌트들
 import Step1BasicInfo from '../components/survey/Step1BasicInfo';
 import Step2Housing from '../components/survey/Step2Housing';
 import Step3Income from '../components/survey/Step3Income';
 import Step4Debt from '../components/survey/Step4Debt';
 import Step5Subscription from '../components/survey/Step5Subscription';
 import Step6Preference from '../components/survey/Step6Preference';
+
+import {
+  computeCheongyakScore,
+  saveCheongyakScoreToStorage,
+} from '../utils/cheongyakScore';
+
+import hamaLogo from '../assets/hama.png';
 
 const TOTAL_STEPS = 6;
 
@@ -22,9 +29,7 @@ const STEP_TITLES = [
   '집 취향',
 ];
 
-type LoadingModalProps = {
-  open: boolean;
-};
+type LoadingModalProps = { open: boolean };
 
 const LoadingModal: React.FC<LoadingModalProps> = ({ open }) => {
   if (!open) return null;
@@ -83,15 +88,27 @@ const SurveyPage: React.FC = () => {
 
       console.log('[submit] raw formData = ', formData);
 
+      // -------------------------------
       // 1) formData 정제
+      // -------------------------------
       const payload: any = { ...formData };
 
       const numberFields = [
-        'age', 'childCount', 'fChildCount', 'annualIncome',
-        'annualSideIncome', 'monthlySavingAmount', 'currentFinancialAssets',
-        'additionalAssets', 'targetSavingRate', 'debtPrincipal',
-        'debtPrincipalPaid', 'monthlyDebtPayment', 'monthlySubscriptionAmount',
-        'totalSubscriptionBalance', 'unhousedStartYear',
+        'age',
+        'childCount',
+        'fChildCount',
+        'annualIncome',
+        'annualSideIncome',
+        'monthlySavingAmount',
+        'currentFinancialAssets',
+        'additionalAssets',
+        'targetSavingRate',
+        'debtPrincipal',
+        'debtPrincipalPaid',
+        'monthlyDebtPayment',
+        'monthlySubscriptionAmount',
+        'totalSubscriptionBalance',
+        'unhousedStartYear',
       ] as const;
 
       numberFields.forEach((key) => {
@@ -111,11 +128,16 @@ const SurveyPage: React.FC = () => {
           if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
           if (/^\d{4}-\d{2}$/.test(value)) return `${value}-01`;
         }
+        console.warn('[normalizeYearMonthToDate] unexpected value:', value);
         return value;
       };
 
-      payload.subscriptionStartDate = normalizeYearMonthToDate(payload.subscriptionStartDate);
-      payload.fSubscriptionStartDate = normalizeYearMonthToDate(payload.fSubscriptionStartDate);
+      payload.subscriptionStartDate = normalizeYearMonthToDate(
+        payload.subscriptionStartDate
+      );
+      payload.fSubscriptionStartDate = normalizeYearMonthToDate(
+        payload.fSubscriptionStartDate
+      );
 
       if (typeof payload.priorityCriteria === 'string') {
         payload.priorityCriteria = [payload.priorityCriteria];
@@ -127,24 +149,44 @@ const SurveyPage: React.FC = () => {
 
       console.log('[submit] cleaned payload = ', payload);
 
+      // -------------------------------
       // 2) 설문 저장
+      // -------------------------------
       const { surveyId } = await api.createSurvey(payload);
       console.log('[submit] ✅ survey created. surveyId =', surveyId);
 
+      // -------------------------------
+      // ✅ 2.5) 청약 가점(추정) 계산 & localStorage 저장
+      //   - 저장은 "score 객체 1개"만 넣는 형태로 맞춤
+      // -------------------------------
+      const score = computeCheongyakScore(payload as SurveyCreateRequest, {
+        surveyId,
+      });
+      saveCheongyakScoreToStorage(score);
+      console.log('[submit] ✅ saved cheongyakScore =', score);
+
+      // -------------------------------
       // 3) AI 플랜 생성
+      // -------------------------------
       console.log('[submit] ▶ calling createPlanByAi for surveyId =', surveyId);
       const plan = await api.createPlanByAi(surveyId);
       console.log('[submit] ✅ AI plan created = ', plan);
 
+      // -------------------------------
       // 4) 결과 페이지로 이동
-      console.log('[submit] 📍 navigating to /plan/' + surveyId);
+      // -------------------------------
       navigate(`/plan/${surveyId}`);
-
     } catch (error: any) {
       console.error('❌ handleSubmit error = ', error);
+
       if (error.response) {
-        console.error('🔍 backend response:', error.response);
+        console.error('🔍 backend response.status = ', error.response.status);
+        console.error(
+          '🔍 backend response.data = ',
+          JSON.stringify(error.response.data, null, 2)
+        );
       }
+
       alert('분석 중 오류가 발생했습니다. 콘솔 로그를 확인해 주세요.');
     } finally {
       setLoading(false);
@@ -180,7 +222,15 @@ const SurveyPage: React.FC = () => {
 
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">청약Assist</h1>
+          {/* ✅ 로고(96px) + 타이틀 */}
+          <div className="flex items-center justify-center gap-4">
+            <img
+              src={hamaLogo}
+              alt="청약하마 로고"
+              className="w-24 h-24 object-contain"
+            />
+            <h1 className="text-3xl font-bold text-gray-900 mb-2"></h1>
+          </div>
           <p className="text-gray-600">나만의 청약·주거 설계</p>
         </div>
 
@@ -210,7 +260,11 @@ const SurveyPage: React.FC = () => {
                 <div
                   key={idx}
                   className={`flex flex-col items-center ${
-                    isCurrent ? 'text-blue-600' : isDone ? 'text-green-600' : 'text-gray-400'
+                    isCurrent
+                      ? 'text-blue-600'
+                      : isDone
+                      ? 'text-green-600'
+                      : 'text-gray-400'
                   }`}
                 >
                   <div

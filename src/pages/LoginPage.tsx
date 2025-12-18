@@ -35,6 +35,9 @@ const LoginPage: React.FC = () => {
       // 프론트 가드용(세션은 서버가 쿠키로 관리)
       localStorage.setItem("loginUser", JSON.stringify(res.data));
 
+      // ✅ 추가: 이전 계정의 "latest 청약가점"이 남아있으면 제거
+      localStorage.removeItem("cheongyakScore:v1:latest");
+
       navigate(from, { replace: true });
     } catch (err) {
       console.error(err);

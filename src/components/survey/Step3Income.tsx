@@ -8,11 +8,12 @@ interface Props {
 }
 
 const Step3Income: React.FC<Props> = ({ data, updateData }) => {
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-blue-50 focus:bg-white";
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-blue-50 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const labelClass = "block text-sm font-semibold text-gray-700 mb-2";
   const hintClass = "text-xs text-gray-500 mt-1.5 flex items-start gap-1";
+  const smallInputClass = "w-full px-3 py-2 pr-12 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
-  // 추가 자산 상태
+  // 추가 자산 상태 (만원 단위)
   const [additionalAssetInputs, setAdditionalAssetInputs] = useState({
     stocks: 0,
     car: 0,
@@ -20,20 +21,35 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
     other: 0
   });
 
+  // 만원을 원으로 변환
+  const manwonToWon = (manwon: number): number => {
+    return manwon * 10000;
+  };
+
+  // 원을 만원으로 변환
+  const wonToManwon = (won: number): number => {
+    return won / 10000;
+  };
+
   // 천만원 단위로 표시하는 헬퍼
   const formatCurrency = (value: number) => {
     if (value >= 100000000) {
       return (value / 100000000).toFixed(1) + '억원';
     }
-    return (value / 10000000).toFixed(1) + '천만원';
+    if (value >= 10000000) {
+      return (value / 10000000).toFixed(1) + '천만원';
+    }
+    return (value / 10000).toFixed(0) + '만원';
   };
 
   // 추가 자산 합산
   const calculateAdditionalAssets = () => {
-    const total = additionalAssetInputs.stocks + 
-                  additionalAssetInputs.car + 
-                  additionalAssetInputs.parentHelp + 
-                  additionalAssetInputs.other;
+    const total = manwonToWon(
+      additionalAssetInputs.stocks + 
+      additionalAssetInputs.car + 
+      additionalAssetInputs.parentHelp + 
+      additionalAssetInputs.other
+    );
     updateData({ additionalAssets: total });
   };
 
@@ -44,7 +60,7 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
           <DollarSign className="w-8 h-8 text-white" />
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">돈 흐름</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">자산 흐름</h2>
         <p className="text-gray-600">얼마나 벌고, 얼마나 모으고 있나요?</p>
       </div>
 
@@ -58,7 +74,7 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
           type="text"
           value={data.jobTitle || ''}
           onChange={(e) => updateData({ jobTitle: e.target.value })}
-          className={inputClass}
+          className={inputClass.replace('[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none', '')}
           placeholder="예: 개발자, 공무원, 대학생"
         />
         <p className={hintClass}>
@@ -77,7 +93,7 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
           type="text"
           value={data.jobDistrict || ''}
           onChange={(e) => updateData({ jobDistrict: e.target.value })}
-          className={inputClass}
+          className={inputClass.replace('[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none', '')}
           placeholder="예: 강남구, 판교"
         />
       </div>
@@ -88,17 +104,20 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
           <TrendingUp className="w-4 h-4 inline mr-1" />
           현재 주수입 기준, 연 소득은 어느 정도인가요?
         </label>
-        <input
-          type="number"
-          value={data.annualIncome || ''}
-          onChange={(e) => updateData({ annualIncome: Number(e.target.value) })}
-          className={inputClass}
-          placeholder="예: 50000000 (5천만원)"
-          step="1000000"
-        />
+        <div className="relative">
+          <input
+            type="number"
+            value={data.annualIncome ? wonToManwon(data.annualIncome) : ''}
+            onChange={(e) => updateData({ annualIncome: manwonToWon(Number(e.target.value)) })}
+            className={inputClass}
+            placeholder="예: 5000 (5천만원)"
+            step="100"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+        </div>
         {data.annualIncome && data.annualIncome > 0 && (
           <div className="mt-2 text-sm text-blue-600 font-medium">
-            약 {formatCurrency(data.annualIncome)}
+            💰 {formatCurrency(data.annualIncome)}
           </div>
         )}
         <p className={hintClass}>
@@ -112,17 +131,20 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
         <label className={labelClass}>
           부수입은 연평균 어느 정도인가요?
         </label>
-        <input
-          type="number"
-          value={data.annualSideIncome || ''}
-          onChange={(e) => updateData({ annualSideIncome: Number(e.target.value) })}
-          className={inputClass}
-          placeholder="없으면 0"
-          step="1000000"
-        />
+        <div className="relative">
+          <input
+            type="number"
+            value={data.annualSideIncome ? wonToManwon(data.annualSideIncome) : ''}
+            onChange={(e) => updateData({ annualSideIncome: manwonToWon(Number(e.target.value)) })}
+            className={inputClass}
+            placeholder="없으면 0"
+            step="100"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+        </div>
         {data.annualSideIncome && data.annualSideIncome > 0 && (
           <div className="mt-2 text-sm text-emerald-600 font-medium">
-            약 {formatCurrency(data.annualSideIncome)}
+            💰 {formatCurrency(data.annualSideIncome)}
           </div>
         )}
       </div>
@@ -133,17 +155,20 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
           <PiggyBank className="w-4 h-4 inline mr-1" />
           매달 얼마 정도 저축하고 있나요?
         </label>
-        <input
-          type="number"
-          value={data.monthlySavingAmount || ''}
-          onChange={(e) => updateData({ monthlySavingAmount: Number(e.target.value) })}
-          className={inputClass}
-          placeholder="예: 1000000 (100만원), 없으면 0"
-          step="100000"
-        />
+        <div className="relative">
+          <input
+            type="number"
+            value={data.monthlySavingAmount ? wonToManwon(data.monthlySavingAmount) : ''}
+            onChange={(e) => updateData({ monthlySavingAmount: manwonToWon(Number(e.target.value)) })}
+            className={inputClass}
+            placeholder="예: 100 (100만원), 없으면 0"
+            step="10"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+        </div>
         {data.monthlySavingAmount && data.monthlySavingAmount > 0 && (
           <div className="mt-2 text-sm text-emerald-600 font-medium">
-            월 {(data.monthlySavingAmount / 10000).toFixed(0)}만원 → 연간 약 {((data.monthlySavingAmount * 12) / 10000000).toFixed(1)}천만원
+            💰 월 {wonToManwon(data.monthlySavingAmount)}만원 → 연간 약 {formatCurrency(data.monthlySavingAmount * 12)}
           </div>
         )}
       </div>
@@ -154,18 +179,21 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
           <Wallet className="w-4 h-4 inline mr-1" />
           지금까지 모아둔 현금·예금은 총 얼마인가요? <span className="text-red-500">*</span>
         </label>
-        <input
-          type="number"
-          value={data.currentFinancialAssets || ''}
-          onChange={(e) => updateData({ currentFinancialAssets: Number(e.target.value) })}
-          className={inputClass}
-          placeholder="예: 100000000 (1억), 없으면 0"
-          step="10000000"
-          required
-        />
+        <div className="relative">
+          <input
+            type="number"
+            value={data.currentFinancialAssets ? wonToManwon(data.currentFinancialAssets) : ''}
+            onChange={(e) => updateData({ currentFinancialAssets: manwonToWon(Number(e.target.value)) })}
+            className={inputClass}
+            placeholder="예: 10000 (1억), 없으면 0"
+            step="1000"
+            required
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+        </div>
         {data.currentFinancialAssets && data.currentFinancialAssets > 0 && (
           <div className="mt-2 text-sm text-blue-700 font-semibold">
-            약 {formatCurrency(data.currentFinancialAssets)}
+            💰 {formatCurrency(data.currentFinancialAssets)}
           </div>
         )}
         <p className={hintClass}>
@@ -183,47 +211,59 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
         <div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
           <div>
             <label className="text-xs text-gray-600 mb-1 block">주식/코인</label>
-            <input
-              type="number"
-              value={additionalAssetInputs.stocks || ''}
-              onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, stocks: Number(e.target.value) }))}
-              placeholder="없으면 0"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
-              step="1000000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={additionalAssetInputs.stocks || ''}
+                onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, stocks: Number(e.target.value) }))}
+                placeholder="없으면 0"
+                className={smallInputClass}
+                step="100"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">만원</span>
+            </div>
           </div>
           <div>
             <label className="text-xs text-gray-600 mb-1 block">자동차 (매각 가능 시)</label>
-            <input
-              type="number"
-              value={additionalAssetInputs.car || ''}
-              onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, car: Number(e.target.value) }))}
-              placeholder="없으면 0"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
-              step="1000000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={additionalAssetInputs.car || ''}
+                onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, car: Number(e.target.value) }))}
+                placeholder="없으면 0"
+                className={smallInputClass}
+                step="100"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">만원</span>
+            </div>
           </div>
           <div>
             <label className="text-xs text-gray-600 mb-1 block">부모님 도움 가능 금액</label>
-            <input
-              type="number"
-              value={additionalAssetInputs.parentHelp || ''}
-              onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, parentHelp: Number(e.target.value) }))}
-              placeholder="없으면 0"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
-              step="5000000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={additionalAssetInputs.parentHelp || ''}
+                onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, parentHelp: Number(e.target.value) }))}
+                placeholder="없으면 0"
+                className={smallInputClass}
+                step="500"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">만원</span>
+            </div>
           </div>
           <div>
             <label className="text-xs text-gray-600 mb-1 block">기타</label>
-            <input
-              type="number"
-              value={additionalAssetInputs.other || ''}
-              onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, other: Number(e.target.value) }))}
-              placeholder="없으면 0"
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none"
-              step="1000000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={additionalAssetInputs.other || ''}
+                onChange={(e) => setAdditionalAssetInputs(prev => ({ ...prev, other: Number(e.target.value) }))}
+                placeholder="없으면 0"
+                className={smallInputClass}
+                step="100"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm pointer-events-none">만원</span>
+            </div>
           </div>
           <div className="pt-2 border-t">
             <button
@@ -235,7 +275,7 @@ const Step3Income: React.FC<Props> = ({ data, updateData }) => {
             </button>
             {data.additionalAssets && data.additionalAssets > 0 && (
               <div className="mt-3 text-center text-sm font-semibold text-blue-700">
-                총 추가 자산: {formatCurrency(data.additionalAssets)}
+                💰 총 추가 자산: {formatCurrency(data.additionalAssets)}
               </div>
             )}
           </div>

@@ -8,9 +8,19 @@ interface Props {
 }
 
 const Step5Subscription: React.FC<Props> = ({ data, updateData }) => {
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-blue-50 focus:bg-white";
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all outline-none bg-blue-50 focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
   const labelClass = "block text-sm font-semibold text-gray-700 mb-2";
   const hintClass = "text-xs text-gray-500 mt-1.5 flex items-start gap-1";
+
+  // 만원을 원으로 변환
+  const manwonToWon = (manwon: number): number => {
+    return manwon * 10000;
+  };
+
+  // 원을 만원으로 변환
+  const wonToManwon = (won: number): number => {
+    return won / 10000;
+  };
 
   const formatCurrency = (value: number) => {
     return (value / 10000).toFixed(0) + '만원';
@@ -98,7 +108,7 @@ const Step5Subscription: React.FC<Props> = ({ data, updateData }) => {
               type="month"
               value={data.subscriptionStartDate || ''}
               onChange={(e) => updateData({ subscriptionStartDate: e.target.value })}
-              className={inputClass}
+              className={inputClass.replace('[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none', '')}
               max={new Date().toISOString().slice(0, 7)}
             />
             {subscriptionPeriod && (
@@ -123,17 +133,20 @@ const Step5Subscription: React.FC<Props> = ({ data, updateData }) => {
               <TrendingUp className="w-4 h-4 inline mr-1" />
               매달 청약 통장에 넣는 금액은 얼마인가요?
             </label>
-            <input
-              type="number"
-              value={data.monthlySubscriptionAmount || ''}
-              onChange={(e) => updateData({ monthlySubscriptionAmount: Number(e.target.value) })}
-              className={inputClass}
-              placeholder="예: 100000 (10만원), 없으면 0"
-              step="10000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={data.monthlySubscriptionAmount ? wonToManwon(data.monthlySubscriptionAmount) : ''}
+                onChange={(e) => updateData({ monthlySubscriptionAmount: manwonToWon(Number(e.target.value)) })}
+                className={inputClass}
+                placeholder="예: 10 (10만원), 없으면 0"
+                step="1"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+            </div>
             {data.monthlySubscriptionAmount && data.monthlySubscriptionAmount > 0 && (
               <div className="mt-2 text-sm text-purple-600 font-medium">
-                월 {formatCurrency(data.monthlySubscriptionAmount)}
+                💰 월 {formatCurrency(data.monthlySubscriptionAmount)}
               </div>
             )}
           </div>
@@ -144,17 +157,20 @@ const Step5Subscription: React.FC<Props> = ({ data, updateData }) => {
               <Wallet className="w-4 h-4 inline mr-1" />
               지금까지 청약 통장에 모인 금액은 얼마인가요?
             </label>
-            <input
-              type="number"
-              value={data.totalSubscriptionBalance || ''}
-              onChange={(e) => updateData({ totalSubscriptionBalance: Number(e.target.value) })}
-              className={inputClass}
-              placeholder="예: 5000000 (500만원), 없으면 0"
-              step="100000"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={data.totalSubscriptionBalance ? wonToManwon(data.totalSubscriptionBalance) : ''}
+                onChange={(e) => updateData({ totalSubscriptionBalance: manwonToWon(Number(e.target.value)) })}
+                className={inputClass}
+                placeholder="예: 500 (500만원), 없으면 0"
+                step="10"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium pointer-events-none">만원</span>
+            </div>
             {data.totalSubscriptionBalance && data.totalSubscriptionBalance > 0 && (
               <div className="mt-2 text-sm text-purple-600 font-semibold">
-                약 {formatCurrency(data.totalSubscriptionBalance)}
+                💰 약 {formatCurrency(data.totalSubscriptionBalance)}
               </div>
             )}
             <p className={hintClass}>
@@ -238,7 +254,7 @@ const Step5Subscription: React.FC<Props> = ({ data, updateData }) => {
               type="month"
               value={data.fSubscriptionStartDate || ''}
               onChange={(e) => updateData({ fSubscriptionStartDate: e.target.value })}
-              className={inputClass}
+              className={inputClass.replace('[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none', '')}
               min={new Date().toISOString().slice(0, 7)}
             />
             <p className={hintClass}>
