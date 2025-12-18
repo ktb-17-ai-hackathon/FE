@@ -66,7 +66,7 @@ jobs:
           REPO=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.ap-northeast-2.amazonaws.com/ktb-17/fe
           
           echo "🐳 Building image: $REPO:$VERSION"
-          docker build --no-cache -t $REPO:$VERSION .
+          docker build -t $REPO:$VERSION .
           docker push $REPO:$VERSION
           
           echo "✅ Successfully pushed: $REPO:$VERSION"
