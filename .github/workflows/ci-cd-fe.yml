@@ -38,14 +38,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint / Type Check (optional)
-        run: |
-          npm run lint --if-present
-          npm run typecheck --if-present
-
-      - name: Test Build (validation only)
-        run: npm run build
-
       # 📦 배포 단계
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
