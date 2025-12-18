@@ -283,7 +283,7 @@ const HomePage: React.FC = () => {
 
         <div className="mt-12 bg-white rounded-2xl shadow-lg p-6 text-center">
           <p className="text-gray-600">
-            💡 <strong className="text-gray-900">청약Assist</strong>는 AI 기반
+            💡 <strong className="text-gray-900">내집하마</strong>는 AI 기반
             분석을 통해<br className="sm:hidden" />
             당신에게 맞는 최적의 청약 전략을 제시합니다.
           </p>
