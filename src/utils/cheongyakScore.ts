@@ -27,7 +27,7 @@ export type CheongyakScore = {
     asOfYear: number;
 
     // 추정/계산에 사용된 원자료
-    unhousedYears: number;       // 무주택기간(년, 추정)
+    unhousedYears: number;       // 무주택기간(년, 추정) 
     dependentsCount: number;     // 부양가족 수(추정, 본인 제외)
     subscriptionMonths: number;  // 통장가입기간(개월, 추정)
 
@@ -268,9 +268,9 @@ export function computeCheongyakScore(
     noteParts.push('청약통장 가입일(순위기산일)이 없어 가입기간 점수는 0점으로 처리했습니다.');
   }
 
-  if (missingFields.length > 0) {
-    noteParts.push(`누락/불명확 항목: ${Array.from(new Set(missingFields)).join(', ')}`);
-  }
+  // if (missingFields.length > 0) {
+  //   noteParts.push(`누락/불명확 항목: ${Array.from(new Set(missingFields)).join(', ')}`);
+  // }
 
   const note = noteParts.join(' ');
 
