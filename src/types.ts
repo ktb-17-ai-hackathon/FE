@@ -19,7 +19,7 @@ interface ApiResponse<T> {
 
 // ===== axios 인스턴스 (/api → 8080 프록시 전제) =====
 const http = axios.create({
-  baseURL: "/api",
+  baseURL: "http://3.34.132.207:8080/api",
   withCredentials: true,
 });
 
